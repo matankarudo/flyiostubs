@@ -1,8 +1,40 @@
+import { createServer } from 'http';
 import { Client, GatewayIntentBits } from 'discord.js';
 
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const BASE44_FUNCTION_URL = process.env.BASE44_FUNCTION_URL;
 const WATCH_CHANNEL_NAME = 'receipts';
+
+// Fail fast with clear message if required env is missing (avoids cryptic crashes later)
+if (!DISCORD_BOT_TOKEN?.trim()) {
+    console.error('FATAL: DISCORD_BOT_TOKEN is not set. Set it in Fly secrets: fly secrets set DISCORD_BOT_TOKEN=your_token');
+    process.exit(1);
+}
+if (!BASE44_FUNCTION_URL?.trim()) {
+    console.error('FATAL: BASE44_FUNCTION_URL is not set. Set it in Fly secrets: fly secrets set BASE44_FUNCTION_URL=https://...');
+    process.exit(1);
+}
+
+// Fly.io expects an HTTP server on internal_port (8080). Without it, health checks fail and machines restart.
+const PORT = Number(process.env.PORT) || 8080;
+const httpServer = createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('OK');
+});
+httpServer.listen(PORT, '0.0.0.0', () => {
+    console.log(`Health check server listening on port ${PORT}`);
+});
+
+// Prevent unhandled rejections from killing the process (common cause of restarts)
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+// Log uncaught exceptions and exit cleanly instead of crashing
+process.on('uncaughtException', (err) => {
+    console.error('Uncaught Exception:', err);
+    process.exit(1);
+});
 
 const client = new Client({
     intents: [
